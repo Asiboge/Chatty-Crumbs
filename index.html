@@ -1098,7 +1098,7 @@
             <span class="nav-link" id="link-contact" onclick="switchView('contact')">Contact Us</span>
         </nav>
         <div class="search-box">
-            <input type="text" placeholder="Search cookies...">
+            <input type="text" id="productSearchBox" placeholder="Search products..." onkeyup="searchProducts(this.value)">
         </div>
     </header>
 
@@ -1417,7 +1417,7 @@
                             * Price listed is excl. Delivery Fee. The final shipping cost will vary based on your specific geographical location profile.
                         </div>
                     </div>
-                    <button class="whatsapp-checkout-btn" style="margin-top: 15px;" onclick="window.transmitOrderToWhatsAppPayload()"><i class="fab fa-whatsapp"></i> Dispatch Order Request</button>
+                    <button class="whatsapp-checkout-btn" style="margin-top: 15px;" onclick="window.transmitOrderToWhatsAppPayload()"><i class="fab fa-whatsapp"></i> Place Order on WhatsApp</button>
                 </div>
             </div>
         </div>
@@ -1453,17 +1453,17 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAs78DkWj90Xm-LqP129zVbN_Mck810Oqw",
-            authDomain: "chattycrumbs-bakery-99172.firebaseapp.com",
-            projectId: "chattycrumbs-bakery-99172",
-            storageBucket: "chattycrumbs-bakery-99172.appspot.com",
-            messagingSenderId: "389201948571",
-            appId: "1:389201948571:web:d20384ef819bcda2718fb0"
-        };
-
+const firebaseConfig = {
+  apiKey: "AIzaSyA3x7ryjc9uVMiWy4Q4uQLWIUgLDU9O4xA",
+  authDomain: "chatty-crumbs.firebaseapp.com",
+  projectId: "chatty-crumbs",
+  storageBucket: "chatty-crumbs.firebasestorage.app",
+  messagingSenderId: "770606826057",
+  appId: "1:770606826057:web:419b392537da78b0023598",
+  measurementId: "G-Q5TP72Q2CZ"
+};
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -1575,41 +1575,59 @@
             });
         }
 
-        window.submitNewCustomerReview = async function() {
-            const nameField = document.getElementById('revName');
-            const locField = document.getElementById('revLocation');
-            const textField = document.getElementById('revText');
+window.submitNewCustomerReview = async function() {
+    const nameField = document.getElementById('revName');
+    const locField = document.getElementById('revLocation');
+    const textField = document.getElementById('revText');
 
-            if(!nameField || !textField) return;
+    if (!nameField || !textField) return;
 
-            const name = nameField.value.trim();
-            const location = locField ? locField.value.trim() : 'RSA';
-            const text = textField.value.trim();
+    const name = nameField.value.trim();
+    const location = locField ? locField.value.trim() : 'RSA';
+    const text = textField.value.trim();
 
-            if(!name || !text) {
-                alert("Please append both your identification profile name and message thoughts.");
-                return;
-            }
+    if (!name || !text) {
+        alert("Please fill in your name and review message.");
+        return;
+    }
 
-            try {
-                await addDoc(collection(db, "bakery_reviews"), {
-                    name: name,
-                    location: location,
-                    rating: selectedFormRating,
-                    text: text,
-                    reply: "",
-                    timestamp: Date.now()
-                });
+    try {
+        await addDoc(collection(db, "bakery_reviews"), {
+            name: name,
+            location: location,
+            rating: selectedFormRating,
+            text: text,
+            reply: "",
+            timestamp: Date.now()
+        });
 
-                nameField.value = '';
-                if(locField) locField.value = '';
-                textField.value = '';
-                alert("Review verified and pushed live to database node cluster successfully.");
-            } catch (err) {
-                console.error("Error writing document to Firestore: ", err);
-                alert("Database submission sync fault. Please re-verify data connectivity parameters.");
-            }
-        };
+        // ✅ CLEAR FORM AFTER SUCCESS
+        nameField.value = "";
+        if (locField) locField.value = "";
+        textField.value = "";
+
+        // ✅ RESET RATING VALUE
+        selectedFormRating = 5;
+
+        // ✅ RESET STAR UI (IMPORTANT FIX)
+        const stars = document.querySelectorAll('#starSelector .fa-star');
+        stars.forEach(star => {
+            star.classList.remove('selected', 'fas');
+            star.classList.add('far');
+        });
+
+        // optional: set default filled stars again if you want visual 5-star reset
+        if (typeof updateRatingStars === "function") {
+            updateRatingStars();
+        }
+
+        alert("Review successfully submitted!");
+
+    } catch (err) {
+        console.error("Error writing document to Firestore: ", err);
+        alert("Something went wrong while submitting your review.");
+    }
+};
 
         window.handleHiddenOwnerTrigger = async function(reviewId) {
             alert("For security, owner replies must now be handled directly within your Firebase Console dashboard.");
@@ -1669,7 +1687,36 @@
     const parsedURLTextPayload = encodeURIComponent(messageStringPayload);
     const destinationWhatsAppAPIPath = `https://wa.me/27827708453?text=${parsedURLTextPayload}`;
 
+    try {
+        await addDoc(collection(db, "orders"), {
+            customerName: name,
+            phone: phone,
+            method: method,
+            province: province,
+            suburb: suburb,
+            street: street,
+            city: city,
+            zip: zip,
+            notes: notes,
+            items: activeCartData,
+            total: mathematicalCumulativeSumValue,
+            timestamp: Date.now()
+        });
+    } catch(e) {
+        console.log("Order backup failed", e);
+    }
+
     window.open(destinationWhatsAppAPIPath, '_blank');
+
+    window.shoppingBoxCartArray = [];
+    synchronizeCartCountBadgeIndicators();
+    rebuildCartPanelCanvasListMarkup();
+
+    const checkoutBox = document.getElementById('checkoutManifestItems');
+    if(checkoutBox) checkoutBox.innerHTML = '';
+    document.getElementById('checkoutGrandTotal').innerText = 'R 0.00';
+
+    alert("Thank you! Your order has been sent to Chatty Crumbs.");
 };
     </script>
 
@@ -1887,6 +1934,14 @@
             });
 
             document.getElementById('checkoutGrandTotal').innerText = 'R ' + calculationRunningSum.toFixed(2);
+        }
+    
+        function searchProducts(term) {
+            const search = term.toLowerCase();
+            document.querySelectorAll('.product-card').forEach(card => {
+                const name = card.querySelector('.product-name').innerText.toLowerCase();
+                card.style.display = name.includes(search) ? 'flex' : 'none';
+            });
         }
     </script>
 </body>
